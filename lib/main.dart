@@ -14,13 +14,19 @@ import 'share_stub.dart'
 
 List<CameraDescription> cameras = [];
 
+class _NoScrollbarBehavior extends MaterialScrollBehavior {
+  const _NoScrollbarBehavior();
+  @override
+  Widget buildScrollbar(BuildContext context, Widget child, ScrollableDetails details) => child;
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (kIsWeb) registerCameraIllustration();
   try {
     cameras = await availableCameras();
   } catch (_) {}
-  final sharedPhotos = kIsWeb ? parseSharedPhotos() : null;
+  final sharedPhotos = kIsWeb ? await parseSharedPhotos() : null;
   runApp(ShotTogetherApp(sharedPhotos: sharedPhotos));
 }
 
@@ -41,9 +47,7 @@ class ShotTogetherApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: sharedPhotos != null
-          ? ResultPage(photos: sharedPhotos!)
-          : const HomePage(),
+      home: HomePage(sharedPhotos: sharedPhotos),
     );
   }
 }
@@ -60,42 +64,80 @@ const _borderColor  = Color(0xFF3A3028);
 // 1) 홈 화면
 // ─────────────────────────────────────────────────────
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final List<Uint8List>? sharedPhotos;
+  const HomePage({super.key, this.sharedPhotos});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int _count = 3;
+  int _count = 1;
+
+  int get _maxCount => 8 - (widget.sharedPhotos?.length ?? 0);
+
+  @override
+  void initState() {
+    super.initState();
+    _count = _count.clamp(1, _maxCount);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgColor,
-      body: Center(
+      body: SingleChildScrollView(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildCameraIllustration(),
-                const SizedBox(height: 32),
-                _buildTitle(),
-                const SizedBox(height: 40),
-                _buildDivider(),
-                const SizedBox(height: 32),
-                _buildCountSelector(),
-                const SizedBox(height: 40),
-                _buildStartButton(),
-                const SizedBox(height: 16),
-                Text(
-                  '촬영 전 3초 카운트다운이 시작됩니다',
-                  style: TextStyle(color: _mutedText, fontSize: 12),
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildCameraIllustration(),
+                    const SizedBox(height: 32),
+                    _buildTitle(),
+                    if (widget.sharedPhotos != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _surfaceColor,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: _redAccent.withValues(alpha: 0.5)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.photo_library_outlined, color: _redAccent, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              '공유된 사진 ${widget.sharedPhotos!.length}장 포함됨',
+                              style: const TextStyle(color: _creamText, fontSize: 13, letterSpacing: 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 40),
+                    _buildDivider(),
+                    const SizedBox(height: 32),
+                    _buildCountSelector(),
+                    const SizedBox(height: 40),
+                    _buildStartButton(),
+                    const SizedBox(height: 16),
+                    Text(
+                      '촬영 전 3초 카운트다운이 시작됩니다',
+                      style: TextStyle(color: _mutedText, fontSize: 12),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -199,7 +241,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(width: 36),
-            _stepBtn(Icons.add, _count < 8
+            _stepBtn(Icons.add, _count < _maxCount
                 ? () => setState(() => _count++)
                 : null),
           ],
@@ -238,7 +280,10 @@ class _HomePageState extends State<HomePage> {
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ShootingPage(totalCount: _count),
+            builder: (_) => ShootingPage(
+            totalCount: _count,
+            preloadedPhotos: widget.sharedPhotos ?? const [],
+          ),
           ),
         ),
         style: ElevatedButton.styleFrom(
@@ -255,7 +300,7 @@ class _HomePageState extends State<HomePage> {
             const Icon(Icons.play_arrow_rounded, size: 22),
             const SizedBox(width: 8),
             Text(
-              'SHOOT  $_count  PHOTOS',
+              widget.sharedPhotos != null ? 'SHOOT  $_count  MORE' : 'SHOOT  $_count  PHOTOS',
               style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
@@ -274,7 +319,8 @@ class _HomePageState extends State<HomePage> {
 // ─────────────────────────────────────────────────────
 class ShootingPage extends StatefulWidget {
   final int totalCount;
-  const ShootingPage({super.key, required this.totalCount});
+  final List<Uint8List> preloadedPhotos;
+  const ShootingPage({super.key, required this.totalCount, this.preloadedPhotos = const []});
 
   @override
   State<ShootingPage> createState() => _ShootingPageState();
@@ -285,11 +331,13 @@ class _ShootingPageState extends State<ShootingPage> {
   bool _ready = false;
   String? _error;
 
-  final List<Uint8List> _photos = [];
+  final List<Uint8List> _newPhotos = [];
   bool _shooting = false;
   int _countdown = 0;
   bool _flash = false;
   bool _done = false;
+
+  List<Uint8List> get _allPhotos => [...widget.preloadedPhotos, ..._newPhotos];
 
   @override
   void initState() {
@@ -318,6 +366,8 @@ class _ShootingPageState extends State<ShootingPage> {
 
   Future<void> _retakeSingle(int index) async {
     if (!_ready || _shooting) return;
+    final newIndex = index - widget.preloadedPhotos.length;
+    if (newIndex < 0 || newIndex >= _newPhotos.length) return;
     setState(() { _shooting = true; _done = false; });
 
     for (int c = 3; c >= 1; c--) {
@@ -334,22 +384,21 @@ class _ShootingPageState extends State<ShootingPage> {
     try {
       final file = await _ctrl!.takePicture();
       final bytes = await file.readAsBytes();
-      if (mounted) {
-        setState(() => _photos[index] = bytes);
-      }
+      if (mounted) setState(() => _newPhotos[newIndex] = bytes);
     } catch (_) {}
 
     if (mounted) setState(() { _shooting = false; _done = true; });
   }
 
   void _openPhotoDetail(int index) {
+    final isPreloaded = index < widget.preloadedPhotos.length;
     showDialog(
       context: context,
       barrierColor: Colors.black87,
       builder: (_) => _PhotoDetailDialog(
-        photo: _photos[index],
+        photo: _allPhotos[index],
         index: index,
-        onRetake: () {
+        onRetake: isPreloaded ? null : () {
           Navigator.pop(context);
           _retakeSingle(index);
         },
@@ -359,7 +408,7 @@ class _ShootingPageState extends State<ShootingPage> {
 
   Future<void> _shoot() async {
     if (!_ready || _shooting) return;
-    setState(() { _shooting = true; _photos.clear(); _done = false; });
+    setState(() { _shooting = true; _newPhotos.clear(); _done = false; });
 
     for (int i = 0; i < widget.totalCount; i++) {
       for (int c = 3; c >= 1; c--) {
@@ -377,7 +426,7 @@ class _ShootingPageState extends State<ShootingPage> {
       try {
         final file = await _ctrl!.takePicture();
         final bytes = await file.readAsBytes();
-        if (mounted) setState(() => _photos.add(bytes));
+        if (mounted) setState(() => _newPhotos.add(bytes));
       } catch (_) {}
 
       if (i < widget.totalCount - 1) {
@@ -457,7 +506,7 @@ class _ShootingPageState extends State<ShootingPage> {
                 const Icon(Icons.circle, color: _redAccent, size: 8),
                 const SizedBox(width: 6),
                 Text(
-                  '${_photos.length.toString().padLeft(2, '0')} / ${widget.totalCount.toString().padLeft(2, '0')}',
+                  '${_allPhotos.length.toString().padLeft(2, '0')} / ${(widget.preloadedPhotos.length + widget.totalCount).toString().padLeft(2, '0')}',
                   style: const TextStyle(
                     color: _creamText,
                     fontWeight: FontWeight.w800,
@@ -495,20 +544,30 @@ class _ShootingPageState extends State<ShootingPage> {
   }
 
   Widget _narrowLayout() {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Expanded(child: _cameraArea()),
-              const SizedBox(height: 16),
-              SizedBox(height: 140, child: _filmStrip(horizontal: true)),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const stripH = 140.0;
+        const gap = 16.0;
+        const pad = 16.0;
+        final camH = (constraints.maxHeight - stripH - gap - pad * 2).clamp(180.0, double.infinity);
+        return SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Padding(
+                padding: const EdgeInsets.all(pad),
+                child: Column(
+                  children: [
+                    SizedBox(height: camH, child: _cameraArea()),
+                    const SizedBox(height: gap),
+                    SizedBox(height: stripH, child: _filmStrip(horizontal: true)),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -606,17 +665,18 @@ class _ShootingPageState extends State<ShootingPage> {
 
   // 필름 스트립 위젯
   Widget _filmStrip({required bool horizontal}) {
-    final slots = widget.totalCount;
+    final slots = widget.preloadedPhotos.length + widget.totalCount;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0806),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: _borderColor),
+    return ScrollConfiguration(
+      behavior: const _NoScrollbarBehavior(),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A0806),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: _borderColor),
+        ),
+        child: horizontal ? _filmHorizontal(slots) : _filmVertical(slots),
       ),
-      child: horizontal
-          ? _filmHorizontal(slots)
-          : _filmVertical(slots),
     );
   }
 
@@ -692,7 +752,8 @@ class _ShootingPageState extends State<ShootingPage> {
       itemCount: slots,
       separatorBuilder: (_, __) => const SizedBox(width: 8, height: 8),
       itemBuilder: (_, i) {
-        final hasPhoto = i < _photos.length;
+        final all = _allPhotos;
+        final hasPhoto = i < all.length;
         final tappable = _done && hasPhoto;
         return GestureDetector(
           onTap: tappable ? () => _openPhotoDetail(i) : null,
@@ -714,7 +775,7 @@ class _ShootingPageState extends State<ShootingPage> {
                 fit: StackFit.expand,
                 children: [
                   if (hasPhoto)
-                    Image.memory(_photos[i], fit: BoxFit.cover)
+                    Image.memory(all[i], fit: BoxFit.cover)
                   else
                     Center(
                       child: Text(
@@ -772,7 +833,7 @@ class _ShootingPageState extends State<ShootingPage> {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ResultPage(photos: List.from(_photos)),
+                      builder: (_) => ResultPage(photos: List.from(_allPhotos)),
                     ),
                   ),
                 ),
@@ -877,72 +938,77 @@ class _ShootingPageState extends State<ShootingPage> {
 class _PhotoDetailDialog extends StatelessWidget {
   final Uint8List photo;
   final int index;
-  final VoidCallback onRetake;
+  final VoidCallback? onRetake;
 
   const _PhotoDetailDialog({
     required this.photo,
     required this.index,
-    required this.onRetake,
+    this.onRetake,
   });
 
   @override
   Widget build(BuildContext context) {
+    final maxImgHeight = MediaQuery.of(context).size.height * 0.55;
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 상단 바
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _surfaceColor,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: _borderColor),
-                  ),
-                  child: Text(
-                    'PHOTO  ${(index + 1).toString().padLeft(2, '0')}',
-                    style: const TextStyle(
-                      color: _creamText,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 3,
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 상단 바
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: _surfaceColor,
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: _borderColor),
                     ),
-                    child: const Icon(Icons.close, color: _creamText, size: 18),
+                    child: Text(
+                      'PHOTO  ${(index + 1).toString().padLeft(2, '0')}',
+                      style: const TextStyle(
+                        color: _creamText,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 3,
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _surfaceColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _borderColor),
+                      ),
+                      child: const Icon(Icons.close, color: _creamText, size: 18),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // 사진
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxImgHeight),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: _borderColor, width: 2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: Image.memory(photo, fit: BoxFit.contain),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // 사진
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: _borderColor, width: 2),
-                borderRadius: BorderRadius.circular(4),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: Image.memory(photo, fit: BoxFit.contain),
-              ),
-            ),
             const SizedBox(height: 16),
             // 버튼 바
             Row(
@@ -972,6 +1038,7 @@ class _PhotoDetailDialog extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (onRetake != null) ...[
                 const SizedBox(width: 12),
                 Expanded(
                   child: GestureDetector(
@@ -998,9 +1065,11 @@ class _PhotoDetailDialog extends StatelessWidget {
                     ),
                   ),
                 ),
+                ],  // end if (onRetake != null)
               ],
             ),
           ],
+        ),
         ),
       ),
     );
@@ -1008,7 +1077,76 @@ class _PhotoDetailDialog extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────
-// 4) 결과 화면
+// 4) 공유 성공 다이얼로그
+// ─────────────────────────────────────────────────────
+class _ShareSuccessDialog extends StatelessWidget {
+  final String url;
+  const _ShareSuccessDialog({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: _surfaceColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: _borderColor),
+      ),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(color: _redAccent, shape: BoxShape.circle),
+                child: const Icon(Icons.link_rounded, color: Colors.white, size: 22),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'URL이 생성되었습니다.',
+                style: TextStyle(color: _creamText, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 1),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'URL을 공유해보세요!',
+                style: TextStyle(color: _mutedText, fontSize: 12),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    decoration: BoxDecoration(
+                      color: _redAccent,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Center(
+                      child: Text('CLOSE',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 2,
+                              fontSize: 13)),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// 5) 결과 화면
 // ─────────────────────────────────────────────────────
 class ResultPage extends StatefulWidget {
   final List<Uint8List> photos;
@@ -1048,6 +1186,88 @@ class _ResultPageState extends State<ResultPage> {
   void _webDownload(Uint8List bytes) {
     if (!kIsWeb) return;
     triggerWebDownload(bytes, 'shot_together_$_dateStr.png');
+  }
+
+  Future<void> _share() async {
+    if (widget.photos.length >= 8) {
+      showDialog(
+        context: context,
+        builder: (_) => Dialog(
+          backgroundColor: _surfaceColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: const BorderSide(color: _borderColor),
+          ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 300),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: const BoxDecoration(color: _surfaceColor, shape: BoxShape.circle),
+                    child: const Icon(Icons.block_rounded, color: _mutedText, size: 22),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    '공유할 수 없습니다.',
+                    style: TextStyle(color: _creamText, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 1),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '8장은 최대 장수입니다.\n공유 시 추가 촬영이 불가능합니다.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: _mutedText, fontSize: 12, height: 1.5),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          color: _surfaceColor,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: _borderColor, width: 1.5),
+                        ),
+                        child: const Center(
+                          child: Text('CLOSE', style: TextStyle(color: _mutedText, fontWeight: FontWeight.w800, letterSpacing: 2, fontSize: 13)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _sharing = true);
+    try {
+      final url = await buildShareUrl(widget.photos);
+      if (url == null) throw Exception('URL 생성 실패');
+      await copyToClipboard(url);
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => _ShareSuccessDialog(url: url),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Share 오류: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
   }
 
   @override
@@ -1184,18 +1404,31 @@ class _ResultPageState extends State<ResultPage> {
       child: _vertical ? _buildVerticalStrip() : _buildHorizontalStrip(),
     );
 
-    // 가로 레이아웃은 내부에서 가로 스크롤, 전체는 세로 스크롤
-    final inner = !_vertical
-        ? SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: strip,
-          )
-        : Center(child: strip);
+    if (!_vertical) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ScrollConfiguration(
+            behavior: const _NoScrollbarBehavior(),
+            child: Scrollbar(
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                child: strip,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: inner,
+    return ScrollConfiguration(
+      behavior: const _NoScrollbarBehavior(),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Center(child: strip),
+      ),
     );
   }
 
@@ -1431,26 +1664,37 @@ class _ResultPageState extends State<ResultPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
+            onTap: _sharing ? null : _share,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: _borderColor, width: 1.5),
+                border: Border.all(
+                  color: _sharing ? _borderColor : _borderColor,
+                  width: 1.5,
+                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.arrow_back_ios_new,
-                      color: _mutedText, size: 15),
+                  _sharing
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(
+                              color: _mutedText, strokeWidth: 2))
+                      : const Icon(Icons.link_rounded,
+                          color: _mutedText, size: 16),
                   const SizedBox(width: 8),
-                  Text('RETURN',
-                      style: TextStyle(
-                        color: _mutedText,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                        fontSize: 13,
-                      )),
+                  Text(
+                    _sharing ? 'SHARING...' : 'SHARE',
+                    style: TextStyle(
+                      color: _mutedText,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2,
+                      fontSize: 13,
+                    ),
+                  ),
                 ],
               ),
             ),
