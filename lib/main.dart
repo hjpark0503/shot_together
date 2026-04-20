@@ -1150,6 +1150,25 @@ class _ShareSuccessDialog extends StatelessWidget {
 // ─────────────────────────────────────────────────────
 // 5) 결과 화면
 // ─────────────────────────────────────────────────────
+// 테마 정의: asset 경로, footer 텍스트 색, 사진 프레임 스타일
+enum StripTheme { film, star, mist, bloom, choco, deco }
+
+class _ThemeMeta {
+  final String label;
+  final String? asset;
+  final Color footerColor;
+  const _ThemeMeta({required this.label, this.asset, required this.footerColor});
+}
+
+const _themeMeta = {
+  StripTheme.film:  _ThemeMeta(label: 'FILM',  asset: null,             footerColor: Color(0xFF9A8C7A)),
+  StripTheme.star:  _ThemeMeta(label: 'STAR',  asset: 'assets/5.jpg',   footerColor: Color(0xFF6B8A3A)),
+  StripTheme.mist:  _ThemeMeta(label: 'MIST',  asset: 'assets/9.jpg',   footerColor: Color(0xFF6A90A0)),
+  StripTheme.bloom: _ThemeMeta(label: 'BLOOM', asset: 'assets/10.png',  footerColor: Color(0xFF9A88BB)),
+  StripTheme.choco: _ThemeMeta(label: 'CHOCO', asset: 'assets/4.jpg',        footerColor: Color(0xFFD4B89A)),
+  StripTheme.deco:  _ThemeMeta(label: 'PLAID', asset: 'assets/6.jpg',          footerColor: Color(0xFF6A90B8)),
+};
+
 class ResultPage extends StatefulWidget {
   final List<Uint8List> photos;
   final bool isSharedView;
@@ -1164,11 +1183,51 @@ class _ResultPageState extends State<ResultPage> {
   bool _twoRows = false;
   bool _downloading = false;
   bool _sharing = false;
+  StripTheme _selectedTheme = StripTheme.film;
   final _stripKey = GlobalKey();
 
   String get _dateStr {
     final now = DateTime.now();
     return '${now.year}.${now.month.toString().padLeft(2,'0')}.${now.day.toString().padLeft(2,'0')}';
+  }
+
+  _ThemeMeta get _meta => _themeMeta[_selectedTheme]!;
+
+  Decoration _stripDecoration() {
+    final asset = _meta.asset;
+    if (asset == null) return const BoxDecoration(color: Color(0xFF080604));
+    return BoxDecoration(
+      image: DecorationImage(image: AssetImage(asset), fit: BoxFit.cover),
+    );
+  }
+
+  Widget _photoFrame(Uint8List photo, double w, double h) {
+    return switch (_selectedTheme) {
+      StripTheme.film => ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: Image.memory(photo, width: w, height: h, fit: BoxFit.cover),
+        ),
+      StripTheme.star => SizedBox(
+          width: w, height: h,
+          child: Image.memory(photo, fit: BoxFit.cover),
+        ),
+      StripTheme.mist => SizedBox(
+          width: w, height: h,
+          child: Image.memory(photo, fit: BoxFit.cover),
+        ),
+      StripTheme.bloom => SizedBox(
+          width: w, height: h,
+          child: Image.memory(photo, fit: BoxFit.cover),
+        ),
+      StripTheme.choco => SizedBox(
+          width: w, height: h,
+          child: Image.memory(photo, fit: BoxFit.cover),
+        ),
+      StripTheme.deco => SizedBox(
+          width: w, height: h,
+          child: Image.memory(photo, fit: BoxFit.cover),
+        ),
+    };
   }
 
   Future<void> _download() async {
@@ -1281,7 +1340,7 @@ class _ResultPageState extends State<ResultPage> {
         child: Column(
           children: [
             _buildHeader(),
-            _buildToggle(),
+            _buildControls(),
             Expanded(child: _buildStripArea()),
             _buildBottomBar(),
           ],
@@ -1308,8 +1367,7 @@ class _ResultPageState extends State<ResultPage> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: _borderColor),
                 ),
-                child: const Icon(Icons.arrow_back_ios_new,
-                    color: _creamText, size: 16),
+                child: const Icon(Icons.arrow_back_ios_new, color: _creamText, size: 16),
               ),
             ),
             const SizedBox(width: 16),
@@ -1347,58 +1405,173 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
-  Widget _buildToggle() {
+  Widget _buildControls() {
     final canTwoRows = widget.photos.length >= 4;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _borderColor)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
         children: [
-          _toggleBtn(
-            icon: Icons.view_column_outlined,
-            selected: !_vertical,
-            onTap: () => setState(() => _vertical = false),
+          // ── 레이아웃 토글 ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _toggleBtn(icon: Icons.table_rows_outlined, selected: _vertical,  onTap: () => setState(() => _vertical = true)),
+              const SizedBox(width: 6),
+              _toggleBtn(icon: Icons.view_column_outlined, selected: !_vertical, onTap: () => setState(() => _vertical = false)),
+              if (canTwoRows) ...[
+                const SizedBox(width: 6),
+                _toggleBtn(icon: Icons.grid_view_rounded,  selected: _twoRows,  onTap: () => setState(() => _twoRows = !_twoRows)),
+              ],
+            ],
           ),
-          const SizedBox(width: 8),
-          _toggleBtn(
-            icon: Icons.table_rows_outlined,
-            selected: _vertical,
-            onTap: () => setState(() => _vertical = true),
-          ),
-          if (canTwoRows) ...[
-            const SizedBox(width: 16),
-            Container(width: 1, height: 24, color: _borderColor),
-            const SizedBox(width: 16),
-            _toggleBtn(
-              icon: Icons.grid_view_rounded,
-              selected: _twoRows,
-              onTap: () => setState(() => _twoRows = !_twoRows),
+          const SizedBox(height: 12),
+          // ── 테마 선택 ──
+          SizedBox(
+            height: 88,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              children: StripTheme.values.map((t) {
+                final meta = _themeMeta[t]!;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: _themeCard(t, meta),
+                );
+              }).toList(),
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _toggleBtn({
-    required IconData icon,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
+  Widget _themeCard(StripTheme theme, _ThemeMeta meta) {
+    final selected = _selectedTheme == theme;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedTheme = theme),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 72,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? _redAccent : _borderColor,
+            width: selected ? 2 : 1,
+          ),
+          boxShadow: selected
+              ? [BoxShadow(color: _redAccent.withValues(alpha: 0.25), blurRadius: 8, spreadRadius: 1)]
+              : [],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(selected ? 8 : 9),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 배경
+              meta.asset != null
+                  ? Image.asset(meta.asset!, fit: BoxFit.cover)
+                  : _filmThumbBg(),
+              // 하단 그라디언트 + 라벨
+              Positioned(
+                bottom: 0, left: 0, right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Colors.black54],
+                    ),
+                  ),
+                  child: Text(
+                    meta.label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ),
+              // 선택 표시
+              if (selected)
+                Positioned(
+                  top: 6, right: 6,
+                  child: Container(
+                    width: 16, height: 16,
+                    decoration: const BoxDecoration(color: _redAccent, shape: BoxShape.circle),
+                    child: const Icon(Icons.check_rounded, color: Colors.white, size: 11),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _filmThumbBg() {
+    return Container(
+      color: const Color(0xFF0A0806),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // 필름 구멍 패턴
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(3, (_) => Container(
+              width: 8, height: 6,
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2420),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            )),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 40, height: 28,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1614),
+              borderRadius: BorderRadius.circular(1),
+            ),
+            child: const Icon(Icons.photo_camera_outlined, color: Color(0xFF3A3028), size: 16),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(3, (_) => Container(
+              width: 8, height: 6,
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2420),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            )),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggleBtn({required IconData icon, required bool selected, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: selected ? _redAccent : _surfaceColor,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: selected ? _redAccent : _borderColor,
-            width: 1.5,
-          ),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: selected ? _redAccent : _borderColor, width: 1.5),
         ),
-        child: Icon(icon, color: selected ? Colors.white : _mutedText, size: 20),
+        child: Icon(icon, color: selected ? Colors.white : _mutedText, size: 16),
       ),
     );
   }
@@ -1441,22 +1614,22 @@ class _ResultPageState extends State<ResultPage> {
   Widget _buildVerticalStrip() {
     const photoW = 300.0;
     const photoH = 225.0;
-    const gap = 6.0;
     const padH = 24.0;
-    const padV = 16.0;
+    const padV = 20.0;
+    final isFilm = _selectedTheme == StripTheme.film;
+    const gap = 4.0;
+    const totalW = photoW + padH * 2;
 
     if (_twoRows) {
-      // 2열 그리드
-      const colW = (photoW - gap) / 2;
-      const totalW = photoW + padH * 2;
+      final colW = (photoW - gap) / 2;
       final rows = (widget.photos.length / 2).ceil();
       return Container(
         width: totalW,
-        color: const Color(0xFF080604),
+        decoration: _stripDecoration(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _filmEdgeH(width: totalW),
+            if (isFilm) _filmEdgeH(width: totalW),
             const SizedBox(height: padV),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: padH),
@@ -1470,18 +1643,10 @@ class _ResultPageState extends State<ResultPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: Image.memory(widget.photos[left],
-                              width: colW, height: photoH * 0.75, fit: BoxFit.cover),
-                        ),
-                        const SizedBox(width: gap),
+                        _photoFrame(widget.photos[left], colW, photoH * 0.75),
+                        SizedBox(width: gap),
                         if (right < widget.photos.length)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: Image.memory(widget.photos[right],
-                                width: colW, height: photoH * 0.75, fit: BoxFit.cover),
-                          )
+                          _photoFrame(widget.photos[right], colW, photoH * 0.75)
                         else
                           SizedBox(width: colW, height: photoH * 0.75),
                       ],
@@ -1492,35 +1657,33 @@ class _ResultPageState extends State<ResultPage> {
             ),
             const SizedBox(height: padV),
             _stripFooter(width: totalW),
-            _filmEdgeH(width: totalW),
+            if (isFilm) _filmEdgeH(width: totalW),
           ],
         ),
       );
     }
 
-    // 1열
     return Container(
-      width: photoW + padH * 2,
-      color: const Color(0xFF080604),
+      width: totalW,
+      decoration: _stripDecoration(),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _filmEdgeH(width: photoW + padH * 2),
+          if (isFilm) _filmEdgeH(width: totalW),
           const SizedBox(height: padV),
-          ...List.generate(widget.photos.length, (i) => Padding(
-            padding: EdgeInsets.only(
-              left: padH, right: padH,
-              bottom: i < widget.photos.length - 1 ? gap : 0,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: padH),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(widget.photos.length, (i) => Padding(
+                padding: EdgeInsets.only(bottom: i < widget.photos.length - 1 ? gap : 0),
+                child: _photoFrame(widget.photos[i], photoW, photoH),
+              )),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: Image.memory(widget.photos[i],
-                  width: photoW, height: photoH, fit: BoxFit.cover),
-            ),
-          )),
+          ),
           const SizedBox(height: padV),
-          _stripFooter(width: photoW + padH * 2),
-          _filmEdgeH(width: photoW + padH * 2),
+          _stripFooter(width: totalW),
+          if (isFilm) _filmEdgeH(width: totalW),
         ],
       ),
     );
@@ -1530,40 +1693,34 @@ class _ResultPageState extends State<ResultPage> {
   Widget _buildHorizontalStrip() {
     const photoW = 230.0;
     const photoH = 173.0;
-    const gap = 6.0;
     const padH = 20.0;
     const padV = 20.0;
+    final isFilm = _selectedTheme == StripTheme.film;
+    const gap = 4.0;
 
     if (_twoRows) {
-      // 2행 그리드
       final cols = (widget.photos.length / 2).ceil();
       final totalW = photoW * cols + gap * (cols - 1) + padH * 2;
       const rowH = photoH - 30;
       return Container(
-        color: const Color(0xFF080604),
+        decoration: _stripDecoration(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _filmEdgeH(width: totalW),
+            if (isFilm) _filmEdgeH(width: totalW),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 상단 행
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: List.generate(cols, (c) => Padding(
                       padding: EdgeInsets.only(right: c < cols - 1 ? gap : 0),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: Image.memory(widget.photos[c],
-                            width: photoW, height: rowH, fit: BoxFit.cover),
-                      ),
+                      child: _photoFrame(widget.photos[c], photoW, rowH),
                     )),
                   ),
-                  const SizedBox(height: gap),
-                  // 하단 행
+                  SizedBox(height: gap),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: List.generate(cols, (c) {
@@ -1571,11 +1728,7 @@ class _ResultPageState extends State<ResultPage> {
                       return Padding(
                         padding: EdgeInsets.only(right: c < cols - 1 ? gap : 0),
                         child: idx < widget.photos.length
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(2),
-                                child: Image.memory(widget.photos[idx],
-                                    width: photoW, height: rowH, fit: BoxFit.cover),
-                              )
+                            ? _photoFrame(widget.photos[idx], photoW, rowH)
                             : SizedBox(width: photoW, height: rowH),
                       );
                     }),
@@ -1584,38 +1737,31 @@ class _ResultPageState extends State<ResultPage> {
               ),
             ),
             _stripFooter(width: totalW),
-            _filmEdgeH(width: totalW),
+            if (isFilm) _filmEdgeH(width: totalW),
           ],
         ),
       );
     }
 
-    // 1행
-    final totalW = photoW * widget.photos.length +
-        gap * (widget.photos.length - 1) +
-        padH * 2;
+    final totalW = photoW * widget.photos.length + gap * (widget.photos.length - 1) + padH * 2;
     return Container(
-      color: const Color(0xFF080604),
+      decoration: _stripDecoration(),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _filmEdgeH(width: totalW),
+          if (isFilm) _filmEdgeH(width: totalW),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: List.generate(widget.photos.length, (i) => Padding(
                 padding: EdgeInsets.only(right: i < widget.photos.length - 1 ? gap : 0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: Image.memory(widget.photos[i],
-                      width: photoW, height: photoH, fit: BoxFit.cover),
-                ),
+                child: _photoFrame(widget.photos[i], photoW, photoH),
               )),
             ),
           ),
           _stripFooter(width: totalW),
-          _filmEdgeH(width: totalW),
+          if (isFilm) _filmEdgeH(width: totalW),
         ],
       ),
     );
@@ -1641,15 +1787,16 @@ class _ResultPageState extends State<ResultPage> {
   }
 
   Widget _stripFooter({required double width}) {
+    final isFilm = _selectedTheme == StripTheme.film;
     return Container(
       width: width,
       padding: const EdgeInsets.symmetric(vertical: 8),
-      color: const Color(0xFF080604),
+      color: isFilm ? const Color(0xFF080604) : Colors.transparent,
       child: Center(
         child: Text(
           _dateStr,
-          style: const TextStyle(
-            color: _mutedText,
+          style: TextStyle(
+            color: _meta.footerColor,
             fontSize: 11,
             letterSpacing: 2,
             fontFamily: 'monospace',
@@ -1715,12 +1862,8 @@ class _ResultPageState extends State<ResultPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _sharing
-                        ? const SizedBox(
-                            width: 16, height: 16,
-                            child: CircularProgressIndicator(
-                                color: _mutedText, strokeWidth: 2))
-                        : const Icon(Icons.link_rounded,
-                            color: _mutedText, size: 16),
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: _mutedText, strokeWidth: 2))
+                        : const Icon(Icons.link_rounded, color: _mutedText, size: 16),
                     const SizedBox(width: 8),
                     Text(
                       _sharing ? 'SHARING...' : 'SHARE',
@@ -1749,12 +1892,8 @@ class _ResultPageState extends State<ResultPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _downloading
-                      ? const SizedBox(
-                          width: 16, height: 16,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.download_rounded,
-                          color: Colors.white, size: 16),
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.download_rounded, color: Colors.white, size: 16),
                   const SizedBox(width: 8),
                   Text(
                     _downloading ? 'SAVING...' : 'SAVE',
