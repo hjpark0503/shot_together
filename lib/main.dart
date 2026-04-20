@@ -1152,7 +1152,7 @@ class _ShareSuccessDialog extends StatelessWidget {
 // 5) 결과 화면
 // ─────────────────────────────────────────────────────
 // 테마 정의: asset 경로, footer 텍스트 색, 사진 프레임 스타일
-enum StripTheme { film, star, mist, bloom, choco, deco }
+enum StripTheme { film, filmLight, star, mist, bloom, choco, deco }
 
 class _ThemeMeta {
   final String label;
@@ -1162,8 +1162,9 @@ class _ThemeMeta {
 }
 
 const _themeMeta = {
-  StripTheme.film:  _ThemeMeta(label: 'FILM',  asset: null,             footerColor: Color(0xFF9A8C7A)),
-  StripTheme.star:  _ThemeMeta(label: 'STAR',  asset: 'assets/5.jpg',   footerColor: Color(0xFF6B8A3A)),
+  StripTheme.film:      _ThemeMeta(label: 'FILM',  asset: null,           footerColor: Color(0xFF9A8C7A)),
+  StripTheme.filmLight: _ThemeMeta(label: 'WHITE', asset: null,           footerColor: Color(0xFF8A8078)),
+  StripTheme.star:      _ThemeMeta(label: 'STAR',  asset: 'assets/5.jpg', footerColor: Color(0xFF6B8A3A)),
   StripTheme.mist:  _ThemeMeta(label: 'MIST',  asset: 'assets/9.jpg',   footerColor: Color(0xFF6A90A0)),
   StripTheme.bloom: _ThemeMeta(label: 'BLOOM', asset: 'assets/10.png',  footerColor: Color(0xFF9A88BB)),
   StripTheme.choco: _ThemeMeta(label: 'CHOCO', asset: 'assets/4.jpg',        footerColor: Color(0xFFD4B89A)),
@@ -1195,9 +1196,16 @@ class _ResultPageState extends State<ResultPage> {
 
   _ThemeMeta get _meta => _themeMeta[_selectedTheme]!;
 
+  bool get _isFilmVariant => _selectedTheme == StripTheme.film;
+
   Decoration _stripDecoration() {
     final asset = _meta.asset;
-    if (asset == null) return const BoxDecoration(color: Color(0xFF080604));
+    if (asset == null) {
+      final bg = _selectedTheme == StripTheme.filmLight
+          ? Colors.white
+          : const Color(0xFF080604);
+      return BoxDecoration(color: bg);
+    }
     return BoxDecoration(
       image: DecorationImage(image: AssetImage(asset), fit: BoxFit.cover),
     );
@@ -1208,6 +1216,10 @@ class _ResultPageState extends State<ResultPage> {
       StripTheme.film => ClipRRect(
           borderRadius: BorderRadius.circular(2),
           child: Image.memory(photo, width: w, height: h, fit: BoxFit.cover),
+        ),
+      StripTheme.filmLight => SizedBox(
+          width: w, height: h,
+          child: Image.memory(photo, fit: BoxFit.cover),
         ),
       StripTheme.star => SizedBox(
           width: w, height: h,
@@ -1510,7 +1522,9 @@ class _ResultPageState extends State<ResultPage> {
               // 배경
               meta.asset != null
                   ? Image.asset(meta.asset!, fit: BoxFit.cover)
-                  : _filmThumbBg(),
+                  : theme == StripTheme.filmLight
+                      ? Container(color: Colors.white)
+                      : _filmThumbBg(),
               // 하단 그라디언트 + 라벨
               Positioned(
                 bottom: 0, left: 0, right: 0,
@@ -1652,7 +1666,7 @@ class _ResultPageState extends State<ResultPage> {
     const photoH = 225.0;
     const padH = 24.0;
     const padV = 20.0;
-    final isFilm = _selectedTheme == StripTheme.film;
+    final isFilm = _isFilmVariant;
     const gap = 4.0;
     const totalW = photoW + padH * 2;
 
@@ -1729,7 +1743,7 @@ class _ResultPageState extends State<ResultPage> {
     const photoH = 173.0;
     const padH = 20.0;
     const padV = 20.0;
-    final isFilm = _selectedTheme == StripTheme.film;
+    final isFilm = _isFilmVariant;
     const gap = 4.0;
 
     if (_twoRows) {
@@ -1802,17 +1816,18 @@ class _ResultPageState extends State<ResultPage> {
   }
 
   Widget _filmEdgeH({required double width}) {
+    final light = _selectedTheme == StripTheme.filmLight;
     return Container(
       width: width,
       height: 20,
-      color: const Color(0xFF080604),
+      color: light ? Colors.white : const Color(0xFF080604),
       child: Row(
         children: List.generate((width ~/ 20), (_) => Container(
           width: 16,
           height: 10,
           margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 5),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E1A16),
+            color: light ? const Color(0xFFDDD8D2) : const Color(0xFF1E1A16),
             borderRadius: BorderRadius.circular(2),
           ),
         )),
@@ -1821,7 +1836,9 @@ class _ResultPageState extends State<ResultPage> {
   }
 
   Widget _stripFooter({required double width}) {
-    final isFilm = _selectedTheme == StripTheme.film;
+    final Color footerBg = _selectedTheme == StripTheme.film
+        ? const Color(0xFF080604)
+        : Colors.transparent;
     final dateStyle = TextStyle(
       color: _meta.footerColor,
       fontSize: 11,
@@ -1831,7 +1848,7 @@ class _ResultPageState extends State<ResultPage> {
     return Container(
       width: width,
       height: 52,
-      color: isFilm ? const Color(0xFF080604) : Colors.transparent,
+      color: footerBg,
       child: Center(
         child: _customText.isNotEmpty
             ? Column(
