@@ -69,6 +69,11 @@ flutter:
     - assets/9.jpg
     - assets/10.png
 
+  fonts:
+    - family: GriunMongtori
+      fonts:
+        - asset: assets/fonts/Griun_Myoeunddobak-Rg.ttf
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

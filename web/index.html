@@ -243,6 +243,21 @@
       return JSON.stringify(compressed);
     };
   </script>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    (function() {
+      var v = Date.now();
+      fetch('flutter_bootstrap.js?nocache=' + v)
+        .then(function(r) { return r.text(); })
+        .then(function(code) {
+          code = code.replace(/"main\.dart\.js"/g, '"main.dart.js?v=' + v + '"');
+          var blob = new Blob([code], {type: 'application/javascript'});
+          var url = URL.createObjectURL(blob);
+          var s = document.createElement('script');
+          s.onload = function() { URL.revokeObjectURL(url); };
+          s.src = url;
+          document.head.appendChild(s);
+        });
+    })();
+  </script>
 </body>
 </html>

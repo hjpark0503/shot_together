@@ -1122,7 +1122,10 @@ class _ShareSuccessDialog extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: () async {
+                    await copyToClipboard(url);
+                    if (context.mounted) Navigator.pop(context);
+                  },
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 11),
                     decoration: BoxDecoration(
@@ -1329,7 +1332,6 @@ class _ResultPageState extends State<ResultPage> {
     try {
       final url = await buildShareUrl(widget.photos);
       if (url == null) throw Exception('URL 생성 실패');
-      await copyToClipboard(url);
       if (!mounted) return;
       showDialog(
         context: context,
@@ -1428,20 +1430,6 @@ class _ResultPageState extends State<ResultPage> {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
         children: [
-          // ── 레이아웃 토글 ──
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _toggleBtn(icon: Icons.table_rows_outlined, selected: _vertical,  onTap: () => setState(() => _vertical = true)),
-              const SizedBox(width: 6),
-              _toggleBtn(icon: Icons.view_column_outlined, selected: !_vertical, onTap: () => setState(() => _vertical = false)),
-              if (canTwoRows) ...[
-                const SizedBox(width: 6),
-                _toggleBtn(icon: Icons.grid_view_rounded,  selected: _twoRows,  onTap: () => setState(() => _twoRows = !_twoRows)),
-              ],
-            ],
-          ),
-          const SizedBox(height: 12),
           // ── 테마 선택 ──
           SizedBox(
             height: 88,
@@ -1459,38 +1447,51 @@ class _ResultPageState extends State<ResultPage> {
             ),
           ),
           const SizedBox(height: 10),
-          // ── 텍스트 입력 버튼 ──
-          GestureDetector(
-            onTap: _showTextInputDialog,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
-              decoration: BoxDecoration(
-                color: _customText.isNotEmpty ? _redAccent.withValues(alpha: 0.15) : _surfaceColor,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: _customText.isNotEmpty ? _redAccent : _borderColor,
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.text_fields_rounded,
-                      color: _customText.isNotEmpty ? _redAccent : _mutedText, size: 15),
-                  const SizedBox(width: 8),
-                  Text(
-                    _customText.isNotEmpty ? _customText : 'ADD TEXT',
-                    style: TextStyle(
-                      color: _customText.isNotEmpty ? _redAccent : _mutedText,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                      letterSpacing: 1,
+          // ── 레이아웃 토글 + 텍스트 입력 버튼 ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _toggleBtn(icon: Icons.table_rows_outlined, selected: _vertical,  onTap: () => setState(() => _vertical = true)),
+              const SizedBox(width: 6),
+              _toggleBtn(icon: Icons.view_column_outlined, selected: !_vertical, onTap: () => setState(() => _vertical = false)),
+              if (canTwoRows) ...[
+                const SizedBox(width: 6),
+                _toggleBtn(icon: Icons.grid_view_rounded,  selected: _twoRows,  onTap: () => setState(() => _twoRows = !_twoRows)),
+              ],
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: _showTextInputDialog,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: _customText.isNotEmpty ? _redAccent.withValues(alpha: 0.15) : _surfaceColor,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: _customText.isNotEmpty ? _redAccent : _borderColor,
+                      width: 1.5,
                     ),
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.text_fields_rounded,
+                          color: _customText.isNotEmpty ? _redAccent : _mutedText, size: 15),
+                      const SizedBox(width: 8),
+                      Text(
+                        _customText.isNotEmpty ? _customText : 'ADD TEXT',
+                        style: TextStyle(
+                          color: _customText.isNotEmpty ? _redAccent : _mutedText,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -1842,8 +1843,9 @@ class _ResultPageState extends State<ResultPage> {
     final dateStyle = TextStyle(
       color: _meta.footerColor,
       fontSize: 11,
+      fontWeight: FontWeight.bold,
       letterSpacing: 2,
-      fontFamily: 'monospace',
+      fontFamily: 'GriunMongtori',
     );
     return Container(
       width: width,
@@ -1858,10 +1860,10 @@ class _ResultPageState extends State<ResultPage> {
                     _customText,
                     style: TextStyle(
                       color: _meta.footerColor,
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 2,
-                      fontFamily: 'monospace',
+                      fontFamily: 'GriunMongtori',
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1903,14 +1905,14 @@ class _ResultPageState extends State<ResultPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '사진 날짜 위에 표시될 텍스트 (최대 10자)',
+                  '사진 날짜 위에 표시될 텍스트 (최대 20자)',
                   style: TextStyle(color: _mutedText, fontSize: 12),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: controller,
                   autofocus: true,
-                  maxLength: 10,
+                  maxLength: 20,
                   maxLengthEnforcement: MaxLengthEnforcement.enforced,
                   style: const TextStyle(color: _creamText, fontSize: 14),
                   cursorColor: _redAccent,
