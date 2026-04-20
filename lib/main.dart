@@ -47,7 +47,9 @@ class ShotTogetherApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: HomePage(sharedPhotos: sharedPhotos),
+      home: sharedPhotos != null
+          ? ResultPage(photos: sharedPhotos!, isSharedView: true)
+          : const HomePage(),
     );
   }
 }
@@ -281,9 +283,9 @@ class _HomePageState extends State<HomePage> {
           context,
           MaterialPageRoute(
             builder: (_) => ShootingPage(
-            totalCount: _count,
-            preloadedPhotos: widget.sharedPhotos ?? const [],
-          ),
+              totalCount: _count,
+              preloadedPhotos: widget.sharedPhotos ?? const [],
+            ),
           ),
         ),
         style: ElevatedButton.styleFrom(
@@ -1150,7 +1152,8 @@ class _ShareSuccessDialog extends StatelessWidget {
 // ─────────────────────────────────────────────────────
 class ResultPage extends StatefulWidget {
   final List<Uint8List> photos;
-  const ResultPage({super.key, required this.photos});
+  final bool isSharedView;
+  const ResultPage({super.key, required this.photos, this.isSharedView = false});
 
   @override
   State<ResultPage> createState() => _ResultPageState();
@@ -1295,20 +1298,22 @@ class _ResultPageState extends State<ResultPage> {
       ),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _surfaceColor,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _borderColor),
+          if (!widget.isSharedView) ...[
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _surfaceColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _borderColor),
+                ),
+                child: const Icon(Icons.arrow_back_ios_new,
+                    color: _creamText, size: 16),
               ),
-              child: const Icon(Icons.arrow_back_ios_new,
-                  color: _creamText, size: 16),
             ),
-          ),
-          const SizedBox(width: 16),
+            const SizedBox(width: 16),
+          ],
           const Text(
             'GET A PHOTO',
             style: TextStyle(
@@ -1663,42 +1668,73 @@ class _ResultPageState extends State<ResultPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          GestureDetector(
-            onTap: _sharing ? null : _share,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: _sharing ? _borderColor : _borderColor,
-                  width: 1.5,
+          if (widget.isSharedView)
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HomePage(sharedPhotos: widget.photos),
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _sharing
-                      ? const SizedBox(
-                          width: 16, height: 16,
-                          child: CircularProgressIndicator(
-                              color: _mutedText, strokeWidth: 2))
-                      : const Icon(Icons.link_rounded,
-                          color: _mutedText, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    _sharing ? 'SHARING...' : 'SHARE',
-                    style: TextStyle(
-                      color: _mutedText,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 2,
-                      fontSize: 13,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: _borderColor, width: 1.5),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.camera_alt_rounded, color: _mutedText, size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'SHOT TOGETHER',
+                      style: TextStyle(
+                        color: _mutedText,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              ),
+            )
+          else
+            GestureDetector(
+              onTap: _sharing ? null : _share,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: _borderColor, width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _sharing
+                        ? const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(
+                                color: _mutedText, strokeWidth: 2))
+                        : const Icon(Icons.link_rounded,
+                            color: _mutedText, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      _sharing ? 'SHARING...' : 'SHARE',
+                      style: const TextStyle(
+                        color: _mutedText,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
           const SizedBox(width: 12),
           GestureDetector(
             onTap: _downloading ? null : _download,
