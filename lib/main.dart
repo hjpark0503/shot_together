@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 
 // Web-only imports
@@ -1184,6 +1185,7 @@ class _ResultPageState extends State<ResultPage> {
   bool _downloading = false;
   bool _sharing = false;
   StripTheme _selectedTheme = StripTheme.film;
+  String _customText = '';
   final _stripKey = GlobalKey();
 
   String get _dateStr {
@@ -1444,6 +1446,40 @@ class _ResultPageState extends State<ResultPage> {
               }).toList(),
             ),
           ),
+          const SizedBox(height: 10),
+          // ── 텍스트 입력 버튼 ──
+          GestureDetector(
+            onTap: _showTextInputDialog,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+              decoration: BoxDecoration(
+                color: _customText.isNotEmpty ? _redAccent.withValues(alpha: 0.15) : _surfaceColor,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: _customText.isNotEmpty ? _redAccent : _borderColor,
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.text_fields_rounded,
+                      color: _customText.isNotEmpty ? _redAccent : _mutedText, size: 15),
+                  const SizedBox(width: 8),
+                  Text(
+                    _customText.isNotEmpty ? _customText : 'ADD TEXT',
+                    style: TextStyle(
+                      color: _customText.isNotEmpty ? _redAccent : _mutedText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1655,7 +1691,6 @@ class _ResultPageState extends State<ResultPage> {
                 }),
               ),
             ),
-            const SizedBox(height: padV),
             _stripFooter(width: totalW),
             if (isFilm) _filmEdgeH(width: totalW),
           ],
@@ -1681,7 +1716,6 @@ class _ResultPageState extends State<ResultPage> {
               )),
             ),
           ),
-          const SizedBox(height: padV),
           _stripFooter(width: totalW),
           if (isFilm) _filmEdgeH(width: totalW),
         ],
@@ -1709,7 +1743,7 @@ class _ResultPageState extends State<ResultPage> {
           children: [
             if (isFilm) _filmEdgeH(width: totalW),
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
+              padding: EdgeInsets.only(left: padH, right: padH, top: padV),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1751,7 +1785,7 @@ class _ResultPageState extends State<ResultPage> {
         children: [
           if (isFilm) _filmEdgeH(width: totalW),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
+            padding: EdgeInsets.only(left: padH, right: padH, top: padV),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: List.generate(widget.photos.length, (i) => Padding(
@@ -1788,18 +1822,142 @@ class _ResultPageState extends State<ResultPage> {
 
   Widget _stripFooter({required double width}) {
     final isFilm = _selectedTheme == StripTheme.film;
+    final dateStyle = TextStyle(
+      color: _meta.footerColor,
+      fontSize: 11,
+      letterSpacing: 2,
+      fontFamily: 'monospace',
+    );
     return Container(
       width: width,
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      height: 52,
       color: isFilm ? const Color(0xFF080604) : Colors.transparent,
       child: Center(
-        child: Text(
-          _dateStr,
-          style: TextStyle(
-            color: _meta.footerColor,
-            fontSize: 11,
-            letterSpacing: 2,
-            fontFamily: 'monospace',
+        child: _customText.isNotEmpty
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _customText,
+                    style: TextStyle(
+                      color: _meta.footerColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(_dateStr, style: dateStyle),
+                ],
+              )
+            : Text(_dateStr, style: dateStyle),
+      ),
+    );
+  }
+
+  void _showTextInputDialog() {
+    final controller = TextEditingController(text: _customText);
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: _surfaceColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: _borderColor),
+        ),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'TEXT',
+                  style: TextStyle(
+                    color: _creamText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 4,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '사진 날짜 위에 표시될 텍스트 (최대 10자)',
+                  style: TextStyle(color: _mutedText, fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  maxLength: 10,
+                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                  style: const TextStyle(color: _creamText, fontSize: 14),
+                  cursorColor: _redAccent,
+                  decoration: InputDecoration(
+                    counterStyle: TextStyle(color: _mutedText, fontSize: 11),
+                    hintText: '텍스트를 입력하세요',
+                    hintStyle: TextStyle(color: _mutedText, fontSize: 13),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: _borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: _redAccent),
+                    ),
+                    filled: true,
+                    fillColor: _bgColor,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() => _customText = '');
+                          Navigator.pop(ctx);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: _borderColor, width: 1.5),
+                          ),
+                          child: const Center(
+                            child: Text('삭제', style: TextStyle(color: _mutedText, fontWeight: FontWeight.w800, fontSize: 13)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() => _customText = controller.text.trim());
+                          Navigator.pop(ctx);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _redAccent,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Center(
+                            child: Text('확인', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
